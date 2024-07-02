@@ -16,7 +16,6 @@ public class Place {
         this.name = name;
         this.administrativeDivision = administrativeDivision;
         this.countryCode = countryCode;
-        this.coordinates = coordinates;
     }
 
     public String getCode() {
@@ -66,19 +65,7 @@ public class Place {
                 ", name='" + name + '\'' +
                 ", administrativeDivision='" + administrativeDivision + '\'' +
                 ", countryCode='" + countryCode + '\'' +
-                ", coordinates='" + coordinates + '\'' +
+                ", coordinates=" + coordinates +
                 '}';
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        Place place = (Place) obj;
-        return code.equals(place.code);
     }
 }
