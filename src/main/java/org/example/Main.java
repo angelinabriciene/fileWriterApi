@@ -6,23 +6,26 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 public class Main {
     public static Gson gson;
+
     public static void main(String[] args) {
         gson = new Gson();
 
         API();
-
-
     }
 
     private static void API() {
-        System.out.println("Įveskite miestą, kurio orus norite pamatyti");
-        Scanner sc = new Scanner(System.in);;
+        System.out.println("Įveskite miestą, kurio orų prognozę norite pamatyti");
+        Scanner sc = new Scanner(System.in);
         String place = sc.nextLine();
 
         try {
@@ -33,9 +36,12 @@ public class Main {
             BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
             String response = "";
             String line;
-            while ((line = reader.readLine()) != null) {
+            while ((line = reader.readLine())!= null) {
                 response += line;
             }
+            reader.close();
+            con.disconnect();
+
             JsonElement jsonElement = JsonParser.parseString(response);
             JsonObject jsonObject = jsonElement.getAsJsonObject();
             JsonObject placeObject = jsonObject.getAsJsonObject("place");
@@ -53,6 +59,9 @@ public class Main {
             System.out.println("Miestas: " + placeInfo.getName());
             System.out.println("Savivaldybė: " + placeInfo.getAdministrativeDivision());
 
+            ZoneId zoneId = ZoneId.of("Europe/Vilnius");
+            LocalDateTime now = LocalDateTime.now(zoneId);
+
             JsonArray forecastArray = jsonObject.getAsJsonArray("forecastTimestamps");
             List<ForecastTimestamp> forecastList = new ArrayList<>();
 
@@ -66,6 +75,11 @@ public class Main {
                 forecast.setConditionCode(forecastObject.get("conditionCode").getAsString());
                 forecastList.add(forecast);
             }
+
+            forecastList = forecastList.stream()
+                    .filter(f -> LocalDateTime.parse(f.getForecastTimeUtc(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).atZone(zoneId).toLocalDateTime().isAfter(now.minusMinutes(now.getMinute()).minusSeconds(now.getSecond()))
+                            && LocalDateTime.parse(f.getForecastTimeUtc(), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).atZone(zoneId).toLocalDateTime().toLocalDate().equals(now.toLocalDate()))
+                    .collect(Collectors.toList());
 
             System.out.println("\nOrų prognozė:");
             System.out.println("-------------------------------");
@@ -82,22 +96,22 @@ public class Main {
         }
     }
 
-    public static void addPlace(Place place){
+    public static void addPlace(Place place) {
         List<Place> places = getPlaces();
         places.add(place);
         updateJson(places);
     }
 
-    public static void updateJson(List<Place> places){
-        try(FileWriter writer = new FileWriter("places.json")) {
-            gson.toJson(places,writer);
+    public static void updateJson(List<Place> places) {
+        try (FileWriter writer = new FileWriter("places.json")) {
+            gson.toJson(places, writer);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     public static Place getPlace(String code) {
-        try(FileReader reader = new FileReader("places.json")){
+        try (FileReader reader = new FileReader("places.json")) {
             JsonElement jsonElement = JsonParser.parseReader(reader);
             JsonArray jsonArray = jsonElement.getAsJsonArray();
 
@@ -120,7 +134,7 @@ public class Main {
                     return place;
                 }
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             System.out.println(e);
             System.out.println("boooooom");
         }
@@ -129,7 +143,7 @@ public class Main {
 
     public static List<Place> getPlaces() {
         List<Place> places = new ArrayList<>();
-        try(FileReader reader = new FileReader("places.json")){
+        try (FileReader reader = new FileReader("places.json")) {
             JsonElement jsonElement = JsonParser.parseReader(reader);
             JsonArray jsonArray = jsonElement.getAsJsonArray();
 
@@ -150,14 +164,14 @@ public class Main {
                 place.setCoordinates(String.valueOf(Coordinates));
                 places.add(place);
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             System.out.println(e);
             System.out.println("boooooom");
         }
         return places;
     }
 
-    public static void updatePlace (Place place) {
+    public static void updatePlace(Place place) {
         List<Place> places = getPlaces();
         places.stream()
                 .filter(p -> p.equals(place))
