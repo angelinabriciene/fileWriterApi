@@ -18,15 +18,110 @@ public class Main {
     public static Gson gson;
 
     public static void main(String[] args) {
-        gson = new Gson();
 
-        API();
+        int input;
+
+        while (true) {
+            System.out.println("Pasirinkime norimą paslaugą įvesdami skaičių");
+            System.out.println("1. Orai šiandien pagal miestą");
+            System.out.println("2. Orų istorija pagl datą");
+            System.out.println("3. Rinktis iš miestų sąrašo ir pamatyti orų prognozę");
+            System.out.println("4. Išeiti iš meniu");
+            Scanner sc = new Scanner(System.in);
+            input = sc.nextInt();
+
+            switch (input) {
+                case 1:
+                    getUserInputAndCallAPI();
+                    break;
+                case 2:
+                    getStationHistoryFromAPI();
+                    break;
+                case 3:
+                    getCitiesFromApi();
+                    break;
+                case 4:
+                    System.out.println("Ačiū, kad apsilankėte!");
+                    System.exit(0);
+                    break;
+                default:
+                    System.out.println("Netinkamas pasirinkimas, bandykite dar kartą. Įveskite skaičių");
+            }
+        }
+
     }
 
-    private static void API() {
+    private static void getStationHistoryFromAPI() {
+        System.out.println("Įveskite orų stotelės miestą (formatas: Vilniaus) :D ");
+        Scanner sc = new Scanner(System.in);
+        String stationName = sc.nextLine();
+
+        System.out.println("Įveskite datą (formatas: yyyy-MM-dd)");
+        String date = sc.nextLine();
+
+        try {
+            URL url = new URL("https://api.meteo.lt/v1/stations/" + stationName + "-ams/observations/" + date);
+
+            System.out.println("https://api.meteo.lt/v1/stations/" + stationName + "-ams/observations/" + date);
+
+            HttpURLConnection con = (HttpURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
+            String response = "";
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response += line;
+            }
+            reader.close();
+            con.disconnect();
+
+            JsonElement jsonElement = JsonParser.parseString(response);
+            JsonObject jsonObject = jsonElement.getAsJsonObject();
+
+            System.out.println(stationName + " orų stotelės istorija " + date + " dienai");
+            System.out.println("-------------------------------");
+
+            JsonArray forecastArray = jsonObject.getAsJsonArray("observations");
+            List<Observation> forecastList = new ArrayList<>();
+
+            for (JsonElement element : forecastArray) {
+                JsonObject forecastObject = element.getAsJsonObject();
+                Observation observation = new Observation();
+                observation.setObservationTimeUtc(forecastObject.get("observationTimeUtc").getAsString());
+                observation.setAirTemperature(forecastObject.get("airTemperature").getAsDouble());
+                observation.setFeelsLikeTemperature(forecastObject.get("feelsLikeTemperature").getAsDouble());
+                observation.setWindSpeed(forecastObject.get("windSpeed").getAsDouble());
+                observation.setConditionCode(forecastObject.get("conditionCode").getAsString());
+                forecastList.add(observation);
+            }
+            for (Observation forecast : forecastList) {
+                System.out.println("Prognozės laikas: " + forecast.getObservationTimeUtc());
+                System.out.println("Oro temperatūra: " + forecast.getAirTemperature());
+                System.out.println("Jutinimė temperatūra: " + forecast.getFeelsLikeTemperature());
+                System.out.println("Vėjo greitis: " + forecast.getWindSpeed());
+                System.out.println("Būsena: " + forecast.getConditionCode());
+                System.out.println();
+            }
+        } catch (Exception e) {
+            System.out.println("Klaida " + e.getMessage());
+        }
+    }
+
+    private static void getUserInputAndCallAPI() {
         System.out.println("Įveskite miestą, kurio orų prognozę norite pamatyti");
         Scanner sc = new Scanner(System.in);
         String place = sc.nextLine();
+        API(place);
+    }
+
+    private static String getUserInput() {
+        Scanner sc = new Scanner(System.in);
+        return sc.nextLine();
+    }
+
+    private static void API(String place) {
+        Scanner sc = new Scanner(System.in);
 
         try {
             URL url = new URL("https://api.meteo.lt/v1/places/" + place + "/forecasts/long-term");
@@ -36,7 +131,7 @@ public class Main {
             BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
             String response = "";
             String line;
-            while ((line = reader.readLine())!= null) {
+            while ((line = reader.readLine()) != null) {
                 response += line;
             }
             reader.close();
@@ -92,8 +187,63 @@ public class Main {
                 System.out.println();
             }
         } catch (Exception e) {
-            System.out.println("Error: " + e.getMessage());
+            System.out.println("Įvesta vietovė neturi meteorologinio stebėjimo stotelės, įveskite kitą jums artimiausią vietovę.Ar norite rinktis iš sąrašo? Įveskite TAIP arba NE");
+            String answer = sc.nextLine();
+            if (answer.equalsIgnoreCase("taip")) {
+                getCitiesFromApi();
+            } else {
+                System.out.println("Įveskite kitą miestą:");
+                String newPlace = getUserInput();
+                API(newPlace);
+            }
         }
+    }
+
+    private static void getCitiesFromApi() {
+        Scanner sc = new Scanner(System.in);
+        List<String> citieNames = getCities();
+        for (int i = 0; i < citieNames.size(); i++) {
+            System.out.println((i + 1) + ". " + citieNames.get(i));
+        }
+        System.out.println("-------------------------------");
+        System.out.println("Pasirinkite miestą įvesdami jo skaičių");
+        int cityChoice = sc.nextInt();
+        sc.nextLine();
+        List<String> cities = citieNames;
+        String selectedCity = cities.get(cityChoice - 1);
+        API(selectedCity);
+    }
+
+    private static List<String> getCities() {
+        List<String> cities = new ArrayList<>();
+        try {
+            URL url = new URL("https://api.meteo.lt/v1/places");
+            HttpURLConnection con = (HttpURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8));
+            String response = "";
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response += line;
+            }
+            reader.close();
+            con.disconnect();
+
+            JsonElement jsonElement = JsonParser.parseString(response);
+            JsonArray jsonArray = jsonElement.getAsJsonArray();
+
+            for (JsonElement element : jsonArray) {
+                JsonObject jsonObject = element.getAsJsonObject();
+                String city = jsonObject.get("name").getAsString();
+                if (!cities.contains(city)) {
+                    cities.add(city);
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Error getting cities: " + e.getMessage());
+        }
+        return cities;
     }
 
     public static void addPlace(Place place) {
